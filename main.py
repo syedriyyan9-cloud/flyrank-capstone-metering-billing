@@ -1,34 +1,17 @@
 from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 
-# Load .env
+from database import get_db
+
 load_dotenv()
 
 app = FastAPI(title="Usage Metering & Billing Engine", version="1.0")
 
-# Database setup
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL not set in .env file")
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 # Import and include routes
-from api.routes import router
-app.include_router(router)
+from api.routes import router as api_router
+app.include_router(api_router)
 
 # Import and include webhook routes
 from api.webhooks.stripe import router as webhook_router

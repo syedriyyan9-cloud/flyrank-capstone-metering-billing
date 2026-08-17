@@ -1,17 +1,18 @@
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from services.stripe_service import StripeService
-from main import get_db
 from typing import Optional
 import os
 
+from database import get_db  # Import from database.py instead of main.py
+
 router = APIRouter(prefix="/api/webhooks/stripe", tags=["Webhooks"])
 
-# Store processed event IDs to prevent duplicates (could also use database)
+# Store processed event IDs to prevent duplicates
 processed_events = set()
 
 @router.post("")
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle Stripe webhook events"""
     try:
         # Get raw body
@@ -37,16 +38,13 @@ async def stripe_webhook(request: Request):
         event_id = event.id
         event_type = event.type
         
-        # Check for duplicate event (idempotency)
+        # Check for duplicate event
         if event_id in processed_events:
             return {
                 "status": "ignored",
                 "message": "Duplicate webhook event",
                 "event_id": event_id
             }
-        
-        # Process event
-        db = next(get_db())
         
         try:
             result = None
@@ -58,14 +56,12 @@ async def stripe_webhook(request: Request):
             elif event_type == "customer.subscription.deleted":
                 result = StripeService.handle_subscription_deleted(event, db)
             else:
-                # Acknowledge unhandled event types
                 return {
                     "status": "ignored",
                     "message": f"Unhandled event type: {event_type}",
                     "event_id": event_id
                 }
             
-            # Mark as processed
             processed_events.add(event_id)
             
             return {
@@ -75,8 +71,12 @@ async def stripe_webhook(request: Request):
                 "result": result
             }
             
-        finally:
-            db.close()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Webhook processing failed: {str(e)}"
+            )
             
     except HTTPException as e:
         raise e
@@ -93,5 +93,5 @@ async def webhook_check():
         "status": "ok",
         "webhook_url": "/api/webhooks/stripe",
         "processed_events_count": len(processed_events),
-        "processed_events": list(processed_events)[-10:]  # Last 10
+        "processed_events": list(processed_events)[-10:]
     }

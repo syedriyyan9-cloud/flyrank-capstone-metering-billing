@@ -1,17 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main import get_db
+from database import get_db  # Changed from main import get_db
 from services import MeterService, QuotaService, CostService
-from models import Tenant
 from services.stripe_service import StripeService
+from models import Tenant
 
 router = APIRouter()
 
