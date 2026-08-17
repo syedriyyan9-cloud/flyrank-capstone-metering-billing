@@ -2,28 +2,7 @@ name: Usage Metering & Billing Engine
 version: 1.0.0
 
 run: docker-compose up --build
-seed: python scripts/seed.py
-test: pytest tests/
+seed: docker exec -it metering_app python scripts/seed.py
+test: python -m pytest tests/ -v
 
 base_url: http://localhost:8000
-
-endpoints:
-  - method: POST
-    path: /api/generate
-    description: Dummy billable endpoint
-  - method: GET
-    path: /api/usage
-    description: Get usage and cost
-  - method: POST
-    path: /api/webhooks/stripe
-    description: Stripe webhook handler
-
-plans:
-  - id: 1
-    name: Free
-    api_limit: 1000
-    token_limit: 100000
-  - id: 2
-    name: Pro
-    api_limit: 10000
-    token_limit: 1000000
