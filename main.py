@@ -30,6 +30,10 @@ def get_db():
 from api.routes import router
 app.include_router(router)
 
+# Import and include webhook routes
+from api.webhooks.stripe import router as webhook_router
+app.include_router(webhook_router)
+
 @app.get("/")
 def root():
     return {"message": "Usage Metering & Billing Engine", "version": "1.0"}

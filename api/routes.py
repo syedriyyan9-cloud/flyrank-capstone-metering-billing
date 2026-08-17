@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from main import get_db
 from services import MeterService, QuotaService, CostService
 from models import Tenant
+from services.stripe_service import StripeService
 
 router = APIRouter()
 
@@ -144,3 +145,53 @@ def list_plans(db: Session = Depends(get_db)):
     from models.plan import Plan
     plans = db.query(Plan).all()
     return [{"id": p.id, "name": p.name, "api_limit": p.api_limit, "token_limit": p.token_limit} for p in plans]
+
+@router.post("/api/checkout")
+def create_checkout(tenant_id: int, price_id: str, db: Session = Depends(get_db)):
+    """Create a Stripe Checkout session for a tenant"""
+    try:
+        result = StripeService.create_checkout_session(tenant_id, price_id, db)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Checkout creation failed: {str(e)}")
+
+@router.get("/api/stripe/success")
+def checkout_success(session_id: str):
+    """Redirect after successful checkout"""
+    return {
+        "message": "Checkout successful! Your subscription is active.",
+        "session_id": session_id
+    }
+
+@router.get("/api/stripe/cancel")
+def checkout_cancel():
+    """Redirect after cancelled checkout"""
+    return {
+        "message": "Checkout cancelled. You can try again anytime."
+    }
+
+@router.get("/api/subscriptions")
+def get_subscriptions(tenant_id: int, db: Session = Depends(get_db)):
+    """Get subscriptions for a tenant"""
+    from models import Subscription
+    subscriptions = db.query(Subscription).filter(
+        Subscription.tenant_id == tenant_id
+    ).all()
+    
+    return {
+        "tenant_id": tenant_id,
+        "subscriptions": [
+            {
+                "id": s.id,
+                "stripe_subscription_id": s.stripe_subscription_id,
+                "plan_id": s.plan_id,
+                "status": s.status,
+                "current_period_start": s.current_period_start.isoformat() if s.current_period_start else None,
+                "current_period_end": s.current_period_end.isoformat() if s.current_period_end else None,
+                "created_at": s.created_at.isoformat()
+            }
+            for s in subscriptions
+        ]
+    }
